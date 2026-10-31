@@ -1,0 +1,17 @@
+# secret-scanner-lora: the exact versions behind every result in results/.
+# Python 3.12 (results produced with 3.12.16) on Apple Silicon (arm64) macOS; MLX needs Apple's Metal GPU.
+# generate_data.py, check_data.py, compare.py and test_evaluate.py use only the standard library.
+# evaluate.py and training (mlx_lm.lora) need the packages below.
+mlx==0.32.4
+mlx-metal==0.32.4
+mlx-lm==0.32.2
+transformers==5.22.0
+# runtime dependencies of mlx-lm and transformers, pinned to the versions used
+numpy==2.5.4
+tokenizers==0.23.3
+huggingface-hub==2.4.0
+safetensors==0.8.0
+sentencepiece==0.2.2
+protobuf==7.36.2
+pyyaml==6.0.3
+jinja2==3.1.6
