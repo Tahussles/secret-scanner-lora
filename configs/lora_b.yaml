@@ -1,0 +1,50 @@
+# lora_b: lora_a with one change, mask_prompt: true (loss on the answer tokens only). Every other value is identical.
+# Train with: mlx_lm.lora -c configs/lora_b.yaml   (no --test: the test set is never used in training)
+# Sources are in .venv/lib/python3.12/site-packages/. lora.py means mlx_lm/lora.py.
+
+# What to train
+model: Qwen/Qwen2.5-1.5B-Instruct              # project choice (default in lora.py CONFIG_DEFAULTS is Qwen/Qwen3-0.6b)
+data: data                                     # project choice: reads data/train.jsonl and data/valid.jsonl
+adapter_path: adapters/lora_b                  # project choice (default "adapters")
+train: true                                    # required to train; CONFIG_DEFAULTS has false (lora.py run(), lines 357-366)
+test: false                                    # CONFIG_DEFAULTS; never evaluate on the test set here
+test_batches: 500                              # CONFIG_DEFAULTS; unused because test is false
+
+# LoRA layers
+fine_tune_type: lora                           # CONFIG_DEFAULTS; lora.py train_model(), line 245
+num_layers: 16                                 # CONFIG_DEFAULTS; last 16 of the 28 transformer blocks (tuner/utils.py linear_to_lora_layers, line 113)
+lora_parameters:                               # CONFIG_DEFAULTS
+  rank: 8
+  scale: 20.0
+  dropout: 0.0
+  keys: null                                   # null = every Linear layer in each adapted block (tuner/utils.py, lines 95-111)
+
+# Optimiser
+optimizer: adam                                # CONFIG_DEFAULTS; lora.py train_model(), lines 288-303
+optimizer_config:
+  adam:                                        # mlx Adam.__init__ defaults (mlx/optimizers/optimizers.py, lines 501-503)
+    betas: [0.9, 0.999]
+    eps: 1.0e-8
+    bias_correction: false
+learning_rate: 1.0e-5                          # CONFIG_DEFAULTS
+lr_schedule: null                              # CONFIG_DEFAULTS; null = constant learning rate (lora.py, line 286)
+
+# Batches and sequence handling
+batch_size: 4                                  # CONFIG_DEFAULTS
+iters: 1000                                    # CONFIG_DEFAULTS (passed to TrainingArgs, lora.py line 274)
+grad_accumulation_steps: 1                     # CONFIG_DEFAULTS
+grad_checkpoint: false                         # CONFIG_DEFAULTS
+max_seq_length: 2048                           # CONFIG_DEFAULTS; longer sequences are truncated (tuner/trainer.py, lines 151-169)
+mask_prompt: true                              # THE lora_b CHANGE (default false); true = loss on the answer tokens only (tuner/datasets.py)
+seed: 0                                        # CONFIG_DEFAULTS; seeds numpy (lora.py line 339) and mlx (lora.py line 232)
+
+# Validation, logging and checkpoints
+val_batches: 25                                # CONFIG_DEFAULTS; 25 x 4 = 100 validation rows per evaluation
+steps_per_eval: 200                            # CONFIG_DEFAULTS; validation at iteration 1, every 200, and the last (tuner/trainer.py, line 286)
+steps_per_report: 10                           # CONFIG_DEFAULTS
+save_every: 100                                # CONFIG_DEFAULTS; checkpoints every 100 iterations, final weights saved after the loop (tuner/trainer.py, lines 368-380)
+resume_adapter_file: null                      # CONFIG_DEFAULTS
+clear_cache_threshold: 0                       # CONFIG_DEFAULTS; not passed to TrainingArgs by lora.py, so it has no effect
+trust_remote_code: false                       # CONFIG_DEFAULTS
+report_to: null                                # CONFIG_DEFAULTS
+project_name: null                             # CONFIG_DEFAULTS

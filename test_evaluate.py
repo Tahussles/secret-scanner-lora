@@ -1,4 +1,5 @@
-"""Tests for the strict parser and the metrics in evaluate.py.
+"""Tests for the strict parser and the metrics in evaluate.py, and for the
+McNemar test in compare.py.
 
 Standard library only. Run with: python test_evaluate.py
 """
@@ -7,6 +8,7 @@ import json
 import unittest
 from pathlib import Path
 
+from compare import mcnemar_counts, mcnemar_exact_p
 from evaluate import INVALID, SAFE, compute_metrics, parse_output
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -77,6 +79,25 @@ class MetricTests(unittest.TestCase):
         self.assertIsNone(m["recall"])
         self.assertIsNone(m["f1"])
         self.assertEqual(m["accuracy"], 1.0)
+
+
+class McNemarTests(unittest.TestCase):
+    def test_counts_only_discordant_rows(self):
+        run_1 = [True, True, False, False, True]
+        run_2 = [True, False, True, False, False]
+        self.assertEqual(mcnemar_counts(run_1, run_2), (2, 1))  # rows 2 and 5 vs row 3
+
+    def test_hand_computed_p_values(self):
+        # b=1, c=5: n=6, tail = (C(6,0) + C(6,1)) / 2^6 = 7/64, p = 2 * 7/64 = 0.21875
+        self.assertAlmostEqual(mcnemar_exact_p(1, 5), 0.21875)
+        # b=0, c=10: tail = C(10,0) / 2^10 = 1/1024, p = 2/1024 = 0.001953125
+        self.assertAlmostEqual(mcnemar_exact_p(0, 10), 0.001953125)
+        # the test is symmetric in b and c
+        self.assertEqual(mcnemar_exact_p(5, 1), mcnemar_exact_p(1, 5))
+
+    def test_p_is_one_when_runs_agree(self):
+        self.assertEqual(mcnemar_exact_p(0, 0), 1.0)  # no discordant rows
+        self.assertEqual(mcnemar_exact_p(3, 3), 1.0)  # 2 * 42/64 > 1, capped at 1
 
 
 if __name__ == "__main__":

@@ -1,18 +1,87 @@
 """Compare evaluation runs side by side.
 
 Reads results/<run>_metrics.json for each run named on the command line and
-prints the same tables for all of them. With exactly two runs, a "change"
-column shows the second run minus the first.
+prints the same tables for all of them, with a column for the change between
+each pair of neighbouring runs.
 
-Usage: python compare.py baseline lora_a
+For every pair of runs evaluated on the same data file, it also runs McNemar's
+exact test on results/<run>_predictions.jsonl, matching rows by line number:
+  b = rows the first run got right and the second got wrong
+  c = rows the second run got right and the first got wrong
+  p = two-sided exact binomial test of b vs c (n = b + c, probability 0.5)
+once for exact-label correctness and once for binary (SAFE vs LEAKED) correctness.
+
+Usage: python compare.py baseline lora_a lora_b
 """
 
 import json
+import math
 import sys
+from itertools import combinations
 from pathlib import Path
 
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
 
+
+# ---------------------------------------------------------------------------
+# McNemar's exact test
+# ---------------------------------------------------------------------------
+
+def mcnemar_counts(correct_1, correct_2):
+    """b = rows run 1 got right and run 2 got wrong; c = the reverse."""
+    b = sum(1 for x, y in zip(correct_1, correct_2) if x and not y)
+    c = sum(1 for x, y in zip(correct_1, correct_2) if y and not x)
+    return b, c
+
+
+def mcnemar_exact_p(b, c):
+    """Two-sided exact McNemar p-value: twice the binomial tail of min(b, c), capped at 1."""
+    n = b + c
+    if n == 0:
+        return 1.0
+    tail = sum(math.comb(n, k) for k in range(min(b, c) + 1)) / 2 ** n
+    return min(1.0, 2 * tail)
+
+
+def is_leaked(label):
+    return label.startswith("LEAKED: ")
+
+
+def binary_correct(gold, parsed):
+    """SAFE vs LEAKED only; INVALID is always wrong."""
+    return (is_leaked(gold) and is_leaked(parsed)) or (gold == "SAFE" and parsed == "SAFE")
+
+
+def load_predictions(run):
+    path = RESULTS_DIR / f"{run}_predictions.jsonl"
+    if not path.exists():
+        return None
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    return {row["line"]: row for row in rows}
+
+
+def print_mcnemar(runs, metrics):
+    print("\nMcNemar's exact test (pairs of runs on the same data, rows matched by line number)")
+    print(f"  {'run 1':<14}{'run 2':<14}{'correctness':<13}{'b':>6}{'c':>6}{'p':>12}")
+    for (run_1, m_1), (run_2, m_2) in combinations(zip(runs, metrics), 2):
+        if m_1["config"]["data_sha256"] != m_2["config"]["data_sha256"]:
+            continue
+        preds_1, preds_2 = load_predictions(run_1), load_predictions(run_2)
+        if preds_1 is None or preds_2 is None:
+            print(f"  {run_1:<14}{run_2:<14}skipped: a predictions file is missing")
+            continue
+        lines = sorted(preds_1)
+        if lines != sorted(preds_2) or any(preds_1[i]["gold"] != preds_2[i]["gold"] for i in lines):
+            sys.exit(f"{run_1} and {run_2} predictions do not cover the same rows")
+        for kind, correct in [("exact label", lambda r: r["parsed"] == r["gold"]),
+                              ("binary", lambda r: binary_correct(r["gold"], r["parsed"]))]:
+            b, c = mcnemar_counts([correct(preds_1[i]) for i in lines], [correct(preds_2[i]) for i in lines])
+            print(f"  {run_1:<14}{run_2:<14}{kind:<13}{b:>6}{c:>6}{mcnemar_exact_p(b, c):>12.3g}")
+
+
+# ---------------------------------------------------------------------------
+# Side-by-side tables
+# ---------------------------------------------------------------------------
 
 def load_run(run):
     path = RESULTS_DIR / f"{run}_metrics.json"
@@ -29,23 +98,25 @@ def fmt(value):
     return str(value)
 
 
-def change(values):
-    first, second = values
-    if isinstance(first, (int, float)) and isinstance(second, (int, float)):
-        return f"{second - first:+.3f}" if isinstance(first, float) or isinstance(second, float) else f"{second - first:+d}"
-    return "n/a"
+def change(first, second):
+    if not isinstance(first, (int, float)) or not isinstance(second, (int, float)):
+        return "n/a"
+    if isinstance(first, float) or isinstance(second, float):
+        return f"{second - first:+.3f}"
+    return f"{second - first:+d}"
 
 
 def print_table(title, rows, runs):
     """rows is a list of (row name, [one value per run])."""
-    show_change = len(runs) == 2
+    pairs = list(zip(runs, runs[1:]))
+    change_headers = [f"{later}-{earlier}" for earlier, later in pairs]
     width = max(len(name) for name, _ in rows) + 2
+    column = max([14] + [len(h) + 2 for h in change_headers])
     print(f"\n{title}")
-    print(" " * width + "".join(f"{run:>14}" for run in runs) + (f"{'change':>10}" if show_change else ""))
+    print(" " * width + "".join(f"{run:>{column}}" for run in runs) + "".join(f"{h:>{column}}" for h in change_headers))
     for name, values in rows:
-        line = f"{name:<{width}}" + "".join(f"{fmt(v):>14}" for v in values)
-        if show_change:
-            line += f"{change(values):>10}"
+        line = f"{name:<{width}}" + "".join(f"{fmt(v):>{column}}" for v in values)
+        line += "".join(f"{change(a, b):>{column}}" for a, b in zip(values, values[1:]))
         print(line)
 
 
@@ -56,7 +127,7 @@ def gap(subsets):
 
 def main():
     runs = sys.argv[1:]
-    if len(runs) < 2:
+    if not runs:
         sys.exit(__doc__)
     metrics = [load_run(run) for run in runs]
 
@@ -108,6 +179,9 @@ def main():
                   ("INVALID, gold LEAKED", [m["binary_confusion"]["LEAKED"]["INVALID"] for m in metrics])]
     error_rows += [(f"INVALID, {f}", [m["per_format"][f]["invalid"] for m in metrics]) for f in formats]
     print_table("Format errors", error_rows, runs)
+
+    if len(runs) > 1:
+        print_mcnemar(runs, metrics)
 
 
 if __name__ == "__main__":
