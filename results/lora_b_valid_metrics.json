@@ -1,0 +1,474 @@
+{
+  "config": {
+    "run_name": "lora_b_valid",
+    "model": "Qwen/Qwen2.5-1.5B-Instruct",
+    "adapter": "adapters/lora_b",
+    "data": "data/valid.jsonl",
+    "meta": "data/valid_meta.jsonl",
+    "limit": null,
+    "n_rows": 446,
+    "max_tokens": 32,
+    "decoding": "greedy: mlx_lm.sample_utils.make_sampler(temp=0.0)",
+    "system_prompt_sha256": "6b3205c056826510f87a5e2f5e3073808990e1eacdc46253026cc4f284b8e355",
+    "data_sha256": "046a6a6ce902ff1ed2982a99c52198ac19668b01579455b02ea3ad7fa0088182",
+    "meta_sha256": "67456a74d2d9dc337087fc1f9f9b21adb02fc74c9957645852f85c2258a7e80b",
+    "mlx_version": "0.32.4",
+    "mlx_lm_version": "0.32.2",
+    "python_version": "3.12.16",
+    "timestamp_utc": "2026-10-31T20:16:36+00:00",
+    "generation_seconds": 76.2,
+    "runtime_seconds": 76.2
+  },
+  "overall": {
+    "n": 446,
+    "tp": 225,
+    "fp": 1,
+    "fn": 0,
+    "tn": 220,
+    "invalid": 0,
+    "precision": 0.995575221238938,
+    "recall": 1.0,
+    "f1": 0.9977827050997783,
+    "accuracy": 0.9977578475336323,
+    "binary_accuracy": 0.9977578475336323,
+    "type_accuracy": 1.0,
+    "format_error_rate": 0.0
+  },
+  "binary_confusion": {
+    "SAFE": {
+      "SAFE": 220,
+      "LEAKED": 1,
+      "INVALID": 0
+    },
+    "LEAKED": {
+      "SAFE": 0,
+      "LEAKED": 225,
+      "INVALID": 0
+    }
+  },
+  "label_confusion": {
+    "SAFE": {
+      "SAFE": 220,
+      "LEAKED: aws_access_key": 1,
+      "LEAKED: github_token": 0,
+      "LEAKED: stripe_key": 0,
+      "LEAKED: slack_token": 0,
+      "LEAKED: private_key": 0,
+      "LEAKED: jwt": 0,
+      "LEAKED: database_url": 0,
+      "LEAKED: password": 0,
+      "LEAKED: generic_api_key": 0,
+      "INVALID": 0
+    },
+    "LEAKED: aws_access_key": {
+      "SAFE": 0,
+      "LEAKED: aws_access_key": 25,
+      "LEAKED: github_token": 0,
+      "LEAKED: stripe_key": 0,
+      "LEAKED: slack_token": 0,
+      "LEAKED: private_key": 0,
+      "LEAKED: jwt": 0,
+      "LEAKED: database_url": 0,
+      "LEAKED: password": 0,
+      "LEAKED: generic_api_key": 0,
+      "INVALID": 0
+    },
+    "LEAKED: github_token": {
+      "SAFE": 0,
+      "LEAKED: aws_access_key": 0,
+      "LEAKED: github_token": 25,
+      "LEAKED: stripe_key": 0,
+      "LEAKED: slack_token": 0,
+      "LEAKED: private_key": 0,
+      "LEAKED: jwt": 0,
+      "LEAKED: database_url": 0,
+      "LEAKED: password": 0,
+      "LEAKED: generic_api_key": 0,
+      "INVALID": 0
+    },
+    "LEAKED: stripe_key": {
+      "SAFE": 0,
+      "LEAKED: aws_access_key": 0,
+      "LEAKED: github_token": 0,
+      "LEAKED: stripe_key": 25,
+      "LEAKED: slack_token": 0,
+      "LEAKED: private_key": 0,
+      "LEAKED: jwt": 0,
+      "LEAKED: database_url": 0,
+      "LEAKED: password": 0,
+      "LEAKED: generic_api_key": 0,
+      "INVALID": 0
+    },
+    "LEAKED: slack_token": {
+      "SAFE": 0,
+      "LEAKED: aws_access_key": 0,
+      "LEAKED: github_token": 0,
+      "LEAKED: stripe_key": 0,
+      "LEAKED: slack_token": 25,
+      "LEAKED: private_key": 0,
+      "LEAKED: jwt": 0,
+      "LEAKED: database_url": 0,
+      "LEAKED: password": 0,
+      "LEAKED: generic_api_key": 0,
+      "INVALID": 0
+    },
+    "LEAKED: private_key": {
+      "SAFE": 0,
+      "LEAKED: aws_access_key": 0,
+      "LEAKED: github_token": 0,
+      "LEAKED: stripe_key": 0,
+      "LEAKED: slack_token": 0,
+      "LEAKED: private_key": 25,
+      "LEAKED: jwt": 0,
+      "LEAKED: database_url": 0,
+      "LEAKED: password": 0,
+      "LEAKED: generic_api_key": 0,
+      "INVALID": 0
+    },
+    "LEAKED: jwt": {
+      "SAFE": 0,
+      "LEAKED: aws_access_key": 0,
+      "LEAKED: github_token": 0,
+      "LEAKED: stripe_key": 0,
+      "LEAKED: slack_token": 0,
+      "LEAKED: private_key": 0,
+      "LEAKED: jwt": 25,
+      "LEAKED: database_url": 0,
+      "LEAKED: password": 0,
+      "LEAKED: generic_api_key": 0,
+      "INVALID": 0
+    },
+    "LEAKED: database_url": {
+      "SAFE": 0,
+      "LEAKED: aws_access_key": 0,
+      "LEAKED: github_token": 0,
+      "LEAKED: stripe_key": 0,
+      "LEAKED: slack_token": 0,
+      "LEAKED: private_key": 0,
+      "LEAKED: jwt": 0,
+      "LEAKED: database_url": 25,
+      "LEAKED: password": 0,
+      "LEAKED: generic_api_key": 0,
+      "INVALID": 0
+    },
+    "LEAKED: password": {
+      "SAFE": 0,
+      "LEAKED: aws_access_key": 0,
+      "LEAKED: github_token": 0,
+      "LEAKED: stripe_key": 0,
+      "LEAKED: slack_token": 0,
+      "LEAKED: private_key": 0,
+      "LEAKED: jwt": 0,
+      "LEAKED: database_url": 0,
+      "LEAKED: password": 25,
+      "LEAKED: generic_api_key": 0,
+      "INVALID": 0
+    },
+    "LEAKED: generic_api_key": {
+      "SAFE": 0,
+      "LEAKED: aws_access_key": 0,
+      "LEAKED: github_token": 0,
+      "LEAKED: stripe_key": 0,
+      "LEAKED: slack_token": 0,
+      "LEAKED: private_key": 0,
+      "LEAKED: jwt": 0,
+      "LEAKED: database_url": 0,
+      "LEAKED: password": 0,
+      "LEAKED: generic_api_key": 25,
+      "INVALID": 0
+    }
+  },
+  "per_leak_type": {
+    "aws_access_key": {
+      "n": 25,
+      "flagged": 25,
+      "recall": 1.0,
+      "exact_type": 25,
+      "exact_type_rate": 1.0,
+      "invalid": 0
+    },
+    "github_token": {
+      "n": 25,
+      "flagged": 25,
+      "recall": 1.0,
+      "exact_type": 25,
+      "exact_type_rate": 1.0,
+      "invalid": 0
+    },
+    "stripe_key": {
+      "n": 25,
+      "flagged": 25,
+      "recall": 1.0,
+      "exact_type": 25,
+      "exact_type_rate": 1.0,
+      "invalid": 0
+    },
+    "slack_token": {
+      "n": 25,
+      "flagged": 25,
+      "recall": 1.0,
+      "exact_type": 25,
+      "exact_type_rate": 1.0,
+      "invalid": 0
+    },
+    "private_key": {
+      "n": 25,
+      "flagged": 25,
+      "recall": 1.0,
+      "exact_type": 25,
+      "exact_type_rate": 1.0,
+      "invalid": 0
+    },
+    "jwt": {
+      "n": 25,
+      "flagged": 25,
+      "recall": 1.0,
+      "exact_type": 25,
+      "exact_type_rate": 1.0,
+      "invalid": 0
+    },
+    "database_url": {
+      "n": 25,
+      "flagged": 25,
+      "recall": 1.0,
+      "exact_type": 25,
+      "exact_type_rate": 1.0,
+      "invalid": 0
+    },
+    "password": {
+      "n": 25,
+      "flagged": 25,
+      "recall": 1.0,
+      "exact_type": 25,
+      "exact_type_rate": 1.0,
+      "invalid": 0
+    },
+    "generic_api_key": {
+      "n": 25,
+      "flagged": 25,
+      "recall": 1.0,
+      "exact_type": 25,
+      "exact_type_rate": 1.0,
+      "invalid": 0
+    }
+  },
+  "per_safe_category": {
+    "env_var": {
+      "n": 17,
+      "false_positives": 0,
+      "false_positive_rate": 0.0,
+      "invalid": 0
+    },
+    "secret_manager": {
+      "n": 17,
+      "false_positives": 0,
+      "false_positive_rate": 0.0,
+      "invalid": 0
+    },
+    "placeholder": {
+      "n": 17,
+      "false_positives": 1,
+      "false_positive_rate": 0.058823529411764705,
+      "invalid": 0
+    },
+    "redacted": {
+      "n": 17,
+      "false_positives": 0,
+      "false_positive_rate": 0.0,
+      "invalid": 0
+    },
+    "hash": {
+      "n": 17,
+      "false_positives": 0,
+      "false_positive_rate": 0.0,
+      "invalid": 0
+    },
+    "uuid": {
+      "n": 17,
+      "false_positives": 0,
+      "false_positive_rate": 0.0,
+      "invalid": 0
+    },
+    "commit_sha": {
+      "n": 17,
+      "false_positives": 0,
+      "false_positive_rate": 0.0,
+      "invalid": 0
+    },
+    "public_key": {
+      "n": 17,
+      "false_positives": 0,
+      "false_positive_rate": 0.0,
+      "invalid": 0
+    },
+    "base64_non_secret": {
+      "n": 17,
+      "false_positives": 0,
+      "false_positive_rate": 0.0,
+      "invalid": 0
+    },
+    "empty_value": {
+      "n": 17,
+      "false_positives": 0,
+      "false_positive_rate": 0.0,
+      "invalid": 0
+    },
+    "keyword_non_secret": {
+      "n": 17,
+      "false_positives": 0,
+      "false_positive_rate": 0.0,
+      "invalid": 0
+    },
+    "db_url_no_secret": {
+      "n": 17,
+      "false_positives": 0,
+      "false_positive_rate": 0.0,
+      "invalid": 0
+    },
+    "plain_code": {
+      "n": 17,
+      "false_positives": 0,
+      "false_positive_rate": 0.0,
+      "invalid": 0
+    }
+  },
+  "held_out_vs_seen": {
+    "held_out": {
+      "n": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "tn": 0,
+      "invalid": 0,
+      "precision": null,
+      "recall": null,
+      "f1": null,
+      "accuracy": null,
+      "binary_accuracy": null,
+      "type_accuracy": null,
+      "format_error_rate": null
+    },
+    "seen": {
+      "n": 446,
+      "tp": 225,
+      "fp": 1,
+      "fn": 0,
+      "tn": 220,
+      "invalid": 0,
+      "precision": 0.995575221238938,
+      "recall": 1.0,
+      "f1": 0.9977827050997783,
+      "accuracy": 0.9977578475336323,
+      "binary_accuracy": 0.9977578475336323,
+      "type_accuracy": 1.0,
+      "format_error_rate": 0.0
+    }
+  },
+  "per_format": {
+    "python": {
+      "n": 130,
+      "tp": 57,
+      "fp": 0,
+      "fn": 0,
+      "tn": 73,
+      "invalid": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "accuracy": 1.0,
+      "binary_accuracy": 1.0,
+      "type_accuracy": 1.0,
+      "format_error_rate": 0.0
+    },
+    "js_ts": {
+      "n": 58,
+      "tp": 24,
+      "fp": 0,
+      "fn": 0,
+      "tn": 34,
+      "invalid": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "accuracy": 1.0,
+      "binary_accuracy": 1.0,
+      "type_accuracy": 1.0,
+      "format_error_rate": 0.0
+    },
+    "yaml": {
+      "n": 69,
+      "tp": 30,
+      "fp": 1,
+      "fn": 0,
+      "tn": 38,
+      "invalid": 0,
+      "precision": 0.967741935483871,
+      "recall": 1.0,
+      "f1": 0.9836065573770492,
+      "accuracy": 0.9855072463768116,
+      "binary_accuracy": 0.9855072463768116,
+      "type_accuracy": 1.0,
+      "format_error_rate": 0.0
+    },
+    "env": {
+      "n": 46,
+      "tp": 33,
+      "fp": 0,
+      "fn": 0,
+      "tn": 13,
+      "invalid": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "accuracy": 1.0,
+      "binary_accuracy": 1.0,
+      "type_accuracy": 1.0,
+      "format_error_rate": 0.0
+    },
+    "json": {
+      "n": 31,
+      "tp": 18,
+      "fp": 0,
+      "fn": 0,
+      "tn": 13,
+      "invalid": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "accuracy": 1.0,
+      "binary_accuracy": 1.0,
+      "type_accuracy": 1.0,
+      "format_error_rate": 0.0
+    },
+    "shell": {
+      "n": 72,
+      "tp": 40,
+      "fp": 0,
+      "fn": 0,
+      "tn": 32,
+      "invalid": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "accuracy": 1.0,
+      "binary_accuracy": 1.0,
+      "type_accuracy": 1.0,
+      "format_error_rate": 0.0
+    },
+    "dockerfile": {
+      "n": 40,
+      "tp": 23,
+      "fp": 0,
+      "fn": 0,
+      "tn": 17,
+      "invalid": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "accuracy": 1.0,
+      "binary_accuracy": 1.0,
+      "type_accuracy": 1.0,
+      "format_error_rate": 0.0
+    }
+  }
+}

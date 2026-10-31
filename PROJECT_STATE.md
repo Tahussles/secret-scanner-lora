@@ -1,7 +1,7 @@
 # PROJECT_STATE
 
 ## Current step
-Round 4 complete: `lora_a` (mlx-lm defaults) trained and evaluated. Test F1 0.885 vs baseline 0.189. `lora_b` change agreed (decision 26: `mask_prompt: true`) but not started. Waiting for Round 5.
+Round 5 complete: `lora_b` (`mask_prompt: true`) trained and evaluated; paired McNemar tests added. Valid F1: lora_b 0.998 vs lora_a 0.954 (McNemar p = 3.8e-6). Test F1: baseline 0.189, lora_a 0.885, lora_b 0.973. Env-read shortcut hypothesis tested (see Findings). Final-model choice and README pending Taha's decision.
 
 ## Done
 - Round 1
@@ -35,6 +35,13 @@ Round 4 complete: `lora_a` (mlx-lm defaults) trained and evaluated. Test F1 0.88
   - Trained with `HF_HUB_OFFLINE=1 mlx_lm.lora -c configs/lora_a.yaml` (no `--test`): 1,000 iterations in 780 s. Log in `results/lora_a_train_log.txt`.
   - Evaluated the final adapter on test (`lora_a`) and valid (`lora_a_valid`). The adapter loaded: 173 of 459 test predictions differ from baseline.
   - `compare.py` added: side-by-side tables from `results/*_metrics.json`.
+- Round 5
+  - `configs/lora_b.yaml` = `configs/lora_a.yaml` with `mask_prompt: true` and `adapter_path: adapters/lora_b` (plus header comments). mlx-lm's merge logic confirms only those two settings differ.
+  - Verified masking in the installed source (tuner/datasets.py ChatDataset.process, lines 59-79; tuner/trainer.py iterate_batches lines 147-172 and default_loss lines 88-101) and by decoding the loss tokens of two training rows. Found one padding target per row (decision 27); Taha chose to proceed unchanged.
+  - Trained with `HF_HUB_OFFLINE=1 /usr/bin/time -l mlx_lm.lora -c configs/lora_b.yaml`: 1,000 iterations, 806 s, peak memory footprint 11.15 GB. Log in `results/lora_b_train_log.txt`.
+  - Evaluated the final adapter on test (`lora_b`) and valid (`lora_b_valid`); 39 of 459 test predictions differ from `lora_a`.
+  - `compare.py` now takes any number of runs and runs McNemar's exact test for every pair of runs on the same data (exact-label and binary correctness). `test_evaluate.py` has 3 McNemar tests (9 tests in total, all pass).
+  - Tested the env-read shortcut hypothesis (marker counts in train, scratch-only ablation on test copies); result under Findings.
 
 ## Environment
 | Item | Value |
@@ -68,20 +75,29 @@ Round 4 complete: `lora_a` (mlx-lm defaults) trained and evaluated. Test F1 0.88
 19. Evaluation decoding: the chat template is applied to [system, user] with `add_generation_prompt=True`; greedy via `make_sampler(temp=0.0)` (checked in the mlx-lm 0.32.2 source: temp 0 returns its argmax sampler); `max_tokens=32`. `evaluate.py` sets `HF_HUB_OFFLINE=1` unless it is already set.
 20. Secret-completeness patterns: the given patterns were widened only where the generator legitimately produces other shapes: AWS also accepts the `ASIA` prefix (temporary STS key IDs, 85 of 167), GitHub also accepts fine-grained `github_pat_` tokens (35 of 167), and private key blocks may be separated by literal `\n` escapes (JSON, .env), have indented body lines (YAML) or start after other text on the BEGIN line (Python string). Stripe, Slack and JWT patterns are unchanged.
 21. Before every commit, grep all staged files for the six secret patterns and confirm no matches.
-22. The final adapter is always the one written after the last iteration (`adapters/<run>/adapters.safetensors`; for `lora_a` its sha256 equals the iteration-1000 checkpoint). No checkpoint is ever picked by test performance.
+22. The final adapter is always the one written after the last iteration (`adapters/<run>/adapters.safetensors`; for `lora_a` and `lora_b` its sha256 equals the iteration-1000 checkpoint). No checkpoint is ever picked by test performance.
 23. The validation set is used for decisions (choosing the `lora_b` change, any later tuning); the test set is used only for reporting.
-24. Training runs use `mlx_lm.lora -c configs/<run>.yaml`, where the config lists every mlx-lm default explicitly (`python -m mlx_lm.lora` is deprecated in 0.32.2). `configs/lora_b.yaml` will differ from `configs/lora_a.yaml` by exactly one line.
+24. Training runs use `mlx_lm.lora -c configs/<run>.yaml`, where the config lists every mlx-lm default explicitly (`python -m mlx_lm.lora` is deprecated in 0.32.2). `configs/lora_b.yaml` differs from `configs/lora_a.yaml` in exactly two settings: `mask_prompt` (the experiment) and `adapter_path` (its own output directory), plus header comments.
 25. Training logs are saved with rich's ANSI colour codes stripped (text otherwise identical; the raw log is kept outside the repo). mlx-lm 0.32.2 computes peak memory but only passes it to `report_to` callbacks, so it is not in the log; it was measured separately with a 100-iteration replica of the `lora_a` config (same losses at iterations 10, 50 and 100): 10.10 GB mlx peak memory, 11.05 GB macOS peak memory footprint.
 26. `lora_b` = `lora_a` with exactly one change: `mask_prompt: true` (loss on the answer tokens only). Agreed by Taha after Round 4, based on the training log and valid results only: with the default, the answer label is 2.0% of the loss tokens (5.5 of 273.5 per example), train loss flattened at about 0.5 from iteration 20, and valid `database_url` recall was 0.48. `lora_b` is compared with `lora_a` on valid F1, not validation loss, because masked and unmasked losses cover different tokens.
+27. mlx-lm 0.32.2 includes one padding target per row in the training loss: batches are zero-padded with at least one extra column (tuner/trainer.py lines 160 and 163) and `default_loss` keeps target positions up to and including the sequence length (line 95), so the target after the last real token, token id 0 (`!`), is counted. This affects both runs: 1 of about 273.5 loss targets per row in `lora_a` (0.4%), 1 of about 6.5 in `lora_b` (2,093 of 13,637 targets, 15.3%). Generation stops at `<|im_end|>`, so it cannot change an answer. Taha chose to proceed without a workaround and document it (Round 5, option A).
+28. Paired significance: McNemar's exact test on per-row correctness (rows matched by line number), two-sided, `p = min(1, 2 * sum_{k<=min(b,c)} C(n,k) / 2^n)` with `n = b + c`, computed for exact-label and for binary (SAFE vs LEAKED) correctness. Valid results decide; test results are reported.
+29. From `lora_b` on, training runs under `/usr/bin/time -l` so the log records the macOS peak memory footprint. Under `mask_prompt: true` the log's `tok/s` and `tokens` columns count loss tokens only (tuner/trainer.py lines 98 and 344), so they are not processing throughput; compare runs by wall-clock time instead.
 
 ## Open issues
 - No remote yet, so nothing is pushed.
 - Package versions are recorded here but there is no `requirements.txt` yet.
 - Test format mix differs from train because several held-out templates are JSON, YAML or JS (JSON is 17% of test vs 8% of train). Keep this in mind when reading per-format test results.
-- `lora_b` (decision 26) is agreed but not trained yet. `configs/lora_b.yaml` must differ from `configs/lora_a.yaml` only in the `mask_prompt` line (plus `adapter_path`, see below).
-- `adapter_path` is also in the config file, so `lora_b` needs its own output directory (`adapters/lora_b`) to avoid overwriting `lora_a`. That makes two differing lines in the file unless the path is passed on the command line (`--adapter-path adapters/lora_b`). Decide this in Round 5.
-- Held-out generalisation gap: test F1 is 0.785 on held-out templates vs 0.965 on seen ones. 37 of the 45 test false negatives come from four held-out templates (`ts_s3_client` 12, `docker_npmrc_token` 11, `sh_mysql_cli` 8, `json_datasource` 6). This is a test-set observation, recorded for reporting only (decision 23).
+- Final model choice pending Taha's decision. Recommendation: `lora_b` (valid F1 0.998 vs 0.954; McNemar on valid b = 0, c = 19, p = 3.8e-6).
+- Held-out generalisation gap (test, reporting only, decision 23): `lora_a` F1 0.785 held-out vs 0.965 seen; `lora_b` 0.941 vs 1.000. All 12 `lora_b` false negatives are the held-out `ts_s3_client` template (see Findings), and its 3 INVALID outputs are on the held-out `yaml_cloud_init_ssh` template (invented types `LEAKED: ssh_key`, `LEAKED: ssh_authorized_keys` for SSH public keys).
+- `lora_b`'s test precision of 1.000 relies on decision 17: its 3 INVALID outputs on SAFE rows all start with `LEAKED:`, so a lenient parser would count them as false positives (precision 213/216 = 0.986).
 - Cosmetic, not a labelling issue: DB host names are drawn independently of the URL scheme (for example `postgresql+psycopg2://...@mysql.staging.local:5432/app`), and a passwordless URL can look like `postgresql://postgres:5432/billing` (host `postgres`, port 5432, no user). Labels are correct; only realism is affected.
+
+## Findings
+- Env-read shortcut (Round 5). Hypothesis: "env-var reads appear only in SAFE training rows, so the model learned 'env read present means SAFE'."
+  - Train counts (snippets containing any of `process.env`, `os.getenv`, `os.environ`, `ENV[`, `getenv(`, `${`, `$(`): 13 LEAKED (1.2% of LEAKED rows, all `js_slack_bolt`, where a Slack token sits next to `signingSecret: process.env...`) vs 129 SAFE (12.4% of SAFE rows). So env reads are not exclusive to SAFE rows, but they are about 10 times more common there, and no training row has a hardcoded AWS key next to an env read.
+  - Ablation (scratch only, test files unchanged): on the 12 held-out `ts_s3_client` rows that `lora_a` got wrong, deleting `, secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY` (keeping the hardcoded `accessKeyId`) flips both `lora_a` and `lora_b` from SAFE to `LEAKED: aws_access_key` on 12 of 12 rows.
+  - Conclusion: supported in its causal form (the env read next to the key drives the SAFE answer), though the "only in SAFE rows" premise is not literally true. The ablation removes both the env read and the `secretAccessKey` field, so it does not separate the two.
 
 ## Dataset (seed 42, `python generate_data.py`)
 | Split | Total | SAFE | LEAKED | Per leak type | Per SAFE category | Held-out-template rows |
@@ -94,12 +110,33 @@ Formats, train: python 551, yaml 369, shell 316, js_ts 278, env 249, json 176, d
 Formats, test: yaml 80, js_ts 78, json 78, python 74, shell 72, dockerfile 41, env 36.
 
 ## Latest metrics
-Test set (`data/test.jsonl`, 459 rows), greedy, `max_tokens=32`. Full numbers in `results/<run>_metrics.json`; side by side with `python compare.py baseline lora_a`.
+Test set (`data/test.jsonl`, 459 rows), greedy, `max_tokens=32`. Full numbers in `results/<run>_metrics.json`; side by side with `python compare.py baseline lora_a lora_b`.
 
 | Run | Precision | Recall | F1 | Accuracy | Binary acc | Type acc | INVALID | Held-out F1 | Seen F1 |
 |---|---|---|---|---|---|---|---|---|---|
 | baseline | 0.625 | 0.111 | 0.189 | 0.525 | 0.525 | 1.000 | 6 | 0.130 | 0.239 |
 | lora_a | 0.989 | 0.800 | 0.885 | 0.895 | 0.898 | 0.994 | 0 | 0.785 | 0.965 |
+| lora_b | 1.000 | 0.947 | 0.973 | 0.967 | 0.967 | 1.000 | 3 | 0.941 | 1.000 |
+
+Valid set (`data/valid.jsonl`, 446 rows, seen templates only; used for decisions):
+
+| Run | Precision | Recall | F1 | Accuracy | INVALID |
+|---|---|---|---|---|---|
+| lora_a_valid | 0.981 | 0.929 | 0.954 | 0.955 | 0 |
+| lora_b_valid | 0.996 | 1.000 | 0.998 | 0.998 | 0 |
+
+McNemar's exact test (b = first run right and second wrong, c = the reverse):
+
+| Data | Pair | Exact label b / c / p | Binary b / c / p |
+|---|---|---|---|
+| valid | lora_a vs lora_b | 0 / 19 / 3.81e-06 | 0 / 19 / 3.81e-06 |
+| test | lora_a vs lora_b | 3 / 36 / 3.61e-08 | 3 / 35 / 6.68e-08 |
+| test | baseline vs lora_a | 1 / 171 / 5.78e-50 | 1 / 172 / 2.91e-50 |
+| test | baseline vs lora_b | 3 / 206 / 3.7e-57 | 3 / 206 / 3.7e-57 |
+
+`lora_b` on test: binary confusion SAFE 231 / 0 / 3 (SAFE / LEAKED / INVALID), LEAKED 12 / 213 / 0. Recall 1.000 for every leak type except AWS (0.520, all 12 misses in held-out `ts_s3_client`). No false positives.
+
+`lora_b` training (answer-token loss, not comparable to `lora_a`'s loss): 1,000 iterations, 806 s wall clock, peak memory footprint 11.15 GB (`/usr/bin/time -l`), maximum resident set size 3.49 GB. Validation loss: 4.413 (iter 1), 0.051 (200), 0.017 (400), 0.010 (600), 0.011 (800), 0.000 (1000). Train loss 1.086 at iteration 10, 0.104 at 100, mostly below 0.01 from iteration 580 with occasional spikes (0.024 at 830, 0.021 at 870), 0.000 at 1000.
 
 `lora_a` on test: binary confusion SAFE 232 / 2 / 0 (SAFE / LEAKED / INVALID), LEAKED 45 / 180 / 0. Recall 1.000 for stripe, slack, private key, jwt and generic API keys; 0.640 password, 0.560 GitHub, 0.520 AWS, 0.480 database_url. Only false positives: 2 placeholders.
 
