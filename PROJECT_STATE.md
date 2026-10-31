@@ -1,7 +1,7 @@
 # PROJECT_STATE
 
 ## Current step
-Round 6 complete: README, `requirements.txt`, final shortcut ablation and pre-publish checks done. Final model `lora_b` (decision 30): test F1 0.973 (baseline 0.189, lora_a 0.885), valid F1 0.998 (lora_a 0.954, McNemar p = 3.8e-6). No GitHub remote yet.
+Application email. Round 7 complete: the repo is public at https://github.com/Tahussles/secret-scanner-lora. Final model `lora_b` (decision 30): test F1 0.973 (baseline 0.189, lora_a 0.885), valid F1 0.998 (lora_a 0.954, McNemar p = 3.8e-6).
 
 ## Done
 - Round 1
@@ -47,6 +47,11 @@ Round 6 complete: README, `requirements.txt`, final shortcut ablation and pre-pu
   - `requirements.txt` with exact pins from the venv (mlx, mlx-metal, mlx-lm, transformers and their runtime dependencies), each checked against the installed version.
   - `README.md` written. Every number in it was cross-checked by a script against `results/*_metrics.json`, the training logs, the configs, the data files and recomputed McNemar tests: 0 mismatches, 0 unverified numbers. The ablation table is the only content sourced from scratch runs.
   - Pre-publish checks on the full history: file list, authors, secret patterns, no em dashes; tests and data checks pass.
+- Round 7
+  - README wording: the result-source note now names both `compare.py` commands, and the "What I learned" findings are reframed (masking as the one training-setup change; the remaining misses as a training-data gap, with the lesson that synthetic data must cover the labelling policy's edge cases).
+  - Local cleanup: expired the reflog and ran `git gc --prune=now`, so the two pre-amend Round 1b commits no longer exist locally. `data/` and `adapters/` untouched.
+  - Final pre-push checks on the full history passed (21 files, one author and committer, no secret patterns, no em dashes, 9 tests and 40 data checks pass).
+  - Published as a public repo: https://github.com/Tahussles/secret-scanner-lora, with topics lora, mlx, fine-tuning, llm-evaluation, secret-detection, synthetic-data. GitHub push protection accepted the push. The remote tree matches `git ls-files` exactly.
 
 ## Environment
 | Item | Value |
@@ -89,9 +94,9 @@ Round 6 complete: README, `requirements.txt`, final shortcut ablation and pre-pu
 28. Paired significance: McNemar's exact test on per-row correctness (rows matched by line number), two-sided, `p = min(1, 2 * sum_{k<=min(b,c)} C(n,k) / 2^n)` with `n = b + c`, computed for exact-label and for binary (SAFE vs LEAKED) correctness. Valid results decide; test results are reported.
 29. From `lora_b` on, training runs under `/usr/bin/time -l` so the log records the macOS peak memory footprint. Under `mask_prompt: true` the log's `tok/s` and `tokens` columns count loss tokens only (tuner/trainer.py lines 98 and 344), so they are not processing throughput; compare runs by wall-clock time instead.
 30. The final model is `lora_b` (`configs/lora_b.yaml`, adapter `adapters/lora_b/adapters.safetensors`). Chosen after Round 5 on valid results: F1 0.998 vs 0.954 for `lora_a`, with McNemar b = 0, c = 19, p = 3.8e-6. Test results (F1 0.973, held-out F1 0.941) are reported, not used to choose. The write-up states its known weaknesses: the 12 held-out `ts_s3_client` misses (the `secretAccessKey`-field shortcut, see Findings), the 3 INVALID outputs on SSH public keys, and that valid contains only seen templates.
+31. Remote: `origin` = https://github.com/Tahussles/secret-scanner-lora (public, branch `main`), and every commit is pushed right after it is made. Pushes use the GitHub CLI's token (`gh auth git-credential`), verified to belong to Tahussles (user id 173319783, the same id as the commit email). `gh auth status` shows an outdated local account label, and no global git credential helper is configured, so the helper is passed per command rather than relying on the keychain.
 
 ## Open issues
-- No remote yet, so nothing is pushed.
 - Test format mix differs from train because several held-out templates are JSON, YAML or JS (JSON is 17% of test vs 8% of train). Keep this in mind when reading per-format test results.
 - Held-out generalisation gap (test, reporting only, decision 23): `lora_a` F1 0.785 held-out vs 0.965 seen; `lora_b` 0.941 vs 1.000. All 12 `lora_b` false negatives are the held-out `ts_s3_client` template (see Findings), and its 3 INVALID outputs are on the held-out `yaml_cloud_init_ssh` template (invented types `LEAKED: ssh_key`, `LEAKED: ssh_authorized_keys` for SSH public keys).
 - `lora_b`'s test precision of 1.000 relies on decision 17: its 3 INVALID outputs on SAFE rows all start with `LEAKED:`, so a lenient parser would count them as false positives (precision 213/216 = 0.986).
