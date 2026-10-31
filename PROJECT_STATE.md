@@ -1,7 +1,7 @@
 # PROJECT_STATE
 
 ## Current step
-Round 2 complete: seeded synthetic dataset generator (`generate_data.py`) and the generated splits. No evaluation or training yet. Waiting for Round 3.
+Round 2b complete: dataset integrity checks committed as `check_data.py` (all pass), dataset audited with no labelling bugs found. No evaluation or training yet. Waiting for Round 3.
 
 ## Done
 - Round 1
@@ -21,6 +21,10 @@ Round 2 complete: seeded synthetic dataset generator (`generate_data.py`) and th
   - `generate_data.py` written: standard library only, one `random.Random(42)`, 90 named templates across 7 formats.
   - Generated `data/{train,valid,test}.jsonl` plus line-aligned `data/*_meta.jsonl` (gitignored, not committed).
   - Verified: held-out templates never in train or valid, 0 identical snippets across or within splits, byte-identical output on two runs, no token-shaped literals in the source.
+- Round 2b
+  - `check_data.py` added (standard library only): prints the template inventory and per-split tables from `data/*.jsonl` + `data/*_meta.jsonl`, runs 33 checks, exits 1 if any fails. Verified the failure path on a corrupted copy of the data (3 FAIL lines, exit code 1).
+  - Label audit: one train example per category (22 rows), contrast pairs and held-out vs train skeletons reviewed by eye. A rule-based audit of all 2,998 rows (token shapes in SAFE rows, literal passwords in SAFE URLs, password vs database_url precedence, private vs public key blocks) found 0 problems.
+  - Generator rerun: all 6 data files byte-identical to the Round 2 files. `generate_data.py` unchanged.
 
 ## Environment
 | Item | Value |
@@ -47,12 +51,14 @@ Round 2 complete: seeded synthetic dataset generator (`generate_data.py`) and th
 12. Value-slot templates: the same skeleton produces LEAKED or SAFE depending on what fills `{value}` (fake secret, placeholder, redacted, empty, passwordless DB URL, public key). Structural SAFE cases (env reads, secret manager calls, hashes, UUIDs, ...) have their own templates.
 13. Deduplication is by whitespace-normalised snippet text across all splits. A duplicate is discarded and regenerated, so every category hits its target count exactly (10 duplicates were regenerated).
 14. Dataset size: 167 examples per leak type and 115 per SAFE category (1,503 LEAKED, 1,495 SAFE, 2,998 total).
+15. Run `python check_data.py` after every regeneration of the dataset. It reads only the output files (it does not import `generate_data.py`), so its inventory counts templates that actually produced examples. That is why placeholder shows 44 templates there vs 45 defined: held-out `yaml_integration_key` is defined for placeholder but the 9 held-out placeholder slots went to the other held-out templates.
 
 ## Open issues
 - No remote yet, so nothing is pushed.
 - Package versions are recorded here but there is no `requirements.txt` yet.
 - Test format mix differs from train because several held-out templates are JSON, YAML or JS (JSON is 17% of test vs 8% of train). Keep this in mind when reading per-format test results.
-- The system prompt is repeated in all 2,998 examples. mlx-lm's `--mask-prompt` option is off by default, so `lora_a` (defaults) will also train on prompt tokens. A candidate setting for `lora_b`.
+- lora_b candidate: --mask-prompt, decide after lora_a. (The system prompt is repeated in all 2,998 examples and mlx-lm 0.32.2 defaults to `mask_prompt=False`, so `lora_a` trains on prompt tokens too.)
+- Cosmetic, not a labelling issue: DB host names are drawn independently of the URL scheme (for example `postgresql+psycopg2://...@mysql.staging.local:5432/app`), and a passwordless URL can look like `postgresql://postgres:5432/billing` (host `postgres`, port 5432, no user). Labels are correct; only realism is affected.
 
 ## Dataset (seed 42, `python generate_data.py`)
 | Split | Total | SAFE | LEAKED | Per leak type | Per SAFE category | Held-out-template rows |
