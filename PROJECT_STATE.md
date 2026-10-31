@@ -1,7 +1,7 @@
 # PROJECT_STATE
 
 ## Current step
-Round 4 complete: `lora_a` (mlx-lm defaults) trained and evaluated. Test F1 0.885 vs baseline 0.189. `lora_b` not started; the one-setting change is awaiting Taha's decision.
+Round 4 complete: `lora_a` (mlx-lm defaults) trained and evaluated. Test F1 0.885 vs baseline 0.189. `lora_b` change agreed (decision 26: `mask_prompt: true`) but not started. Waiting for Round 5.
 
 ## Done
 - Round 1
@@ -72,12 +72,14 @@ Round 4 complete: `lora_a` (mlx-lm defaults) trained and evaluated. Test F1 0.88
 23. The validation set is used for decisions (choosing the `lora_b` change, any later tuning); the test set is used only for reporting.
 24. Training runs use `mlx_lm.lora -c configs/<run>.yaml`, where the config lists every mlx-lm default explicitly (`python -m mlx_lm.lora` is deprecated in 0.32.2). `configs/lora_b.yaml` will differ from `configs/lora_a.yaml` by exactly one line.
 25. Training logs are saved with rich's ANSI colour codes stripped (text otherwise identical; the raw log is kept outside the repo). mlx-lm 0.32.2 computes peak memory but only passes it to `report_to` callbacks, so it is not in the log; it was measured separately with a 100-iteration replica of the `lora_a` config (same losses at iterations 10, 50 and 100): 10.10 GB mlx peak memory, 11.05 GB macOS peak memory footprint.
+26. `lora_b` = `lora_a` with exactly one change: `mask_prompt: true` (loss on the answer tokens only). Agreed by Taha after Round 4, based on the training log and valid results only: with the default, the answer label is 2.0% of the loss tokens (5.5 of 273.5 per example), train loss flattened at about 0.5 from iteration 20, and valid `database_url` recall was 0.48. `lora_b` is compared with `lora_a` on valid F1, not validation loss, because masked and unmasked losses cover different tokens.
 
 ## Open issues
 - No remote yet, so nothing is pushed.
 - Package versions are recorded here but there is no `requirements.txt` yet.
 - Test format mix differs from train because several held-out templates are JSON, YAML or JS (JSON is 17% of test vs 8% of train). Keep this in mind when reading per-format test results.
-- lora_b decision pending. Recommendation from the training log and valid results: `mask_prompt: true`. With the default `mask_prompt: false`, the answer label is only 2.0% of the tokens in the loss (5.5 of 273.5 per training example; the fixed system prompt is 73.1%). Train loss fell from 2.460 to 0.704 by iteration 20 and then stayed around 0.5 while valid `database_url` recall is only 0.48.
+- `lora_b` (decision 26) is agreed but not trained yet. `configs/lora_b.yaml` must differ from `configs/lora_a.yaml` only in the `mask_prompt` line (plus `adapter_path`, see below).
+- `adapter_path` is also in the config file, so `lora_b` needs its own output directory (`adapters/lora_b`) to avoid overwriting `lora_a`. That makes two differing lines in the file unless the path is passed on the command line (`--adapter-path adapters/lora_b`). Decide this in Round 5.
 - Held-out generalisation gap: test F1 is 0.785 on held-out templates vs 0.965 on seen ones. 37 of the 45 test false negatives come from four held-out templates (`ts_s3_client` 12, `docker_npmrc_token` 11, `sh_mysql_cli` 8, `json_datasource` 6). This is a test-set observation, recorded for reporting only (decision 23).
 - Cosmetic, not a labelling issue: DB host names are drawn independently of the URL scheme (for example `postgresql+psycopg2://...@mysql.staging.local:5432/app`), and a passwordless URL can look like `postgresql://postgres:5432/billing` (host `postgres`, port 5432, no user). Labels are correct; only realism is affected.
 
