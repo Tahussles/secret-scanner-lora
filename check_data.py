@@ -6,6 +6,9 @@ files, prints the template inventory and per-split tables, then checks that:
 - no snippet (whitespace-normalised) appears in two splits
 - every assistant message is exactly SAFE or LEAKED: <valid type>
 - every system message equals configs/system_prompt.txt
+- no U+2022 (bullet) masking character appears in any of the six files
+- every LEAKED snippet of a type with a known shape (AWS, GitHub, Stripe, Slack,
+  JWT, private key) contains a complete value of that shape
 plus a few consistency checks between the data and metadata files.
 
 Exits with status 1 if any check fails.
@@ -38,6 +41,24 @@ VALID_LABELS = {"SAFE"} | {f"LEAKED: {t}" for t in LEAK_TYPES}
 
 # The labelling rule from generate_data.py: only explicit markers make a value a placeholder.
 PLACEHOLDER_MARKERS = re.compile(r"example|dummy|xxxx|your[_-]\S*[_-]here|<[^<>]+>", re.IGNORECASE)
+
+# Every LEAKED snippet of these types must contain its complete secret, so a value
+# that was truncated or masked (for example with bullets) fails the check.
+SECRET_SHAPES = {
+    # AKIA = long-term key ID, ASIA = temporary (STS) key ID
+    "aws_access_key": re.compile(r"(?<![A-Za-z0-9])(?:AKIA|ASIA)[0-9A-Z]{16}(?![A-Za-z0-9])"),
+    # classic token, or fine-grained personal access token
+    "github_token": re.compile(
+        r"(?<![A-Za-z0-9_])(?:gh[pousr]_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9]{22}_[A-Za-z0-9]{59})(?![A-Za-z0-9_])"),
+    "stripe_key": re.compile(r"(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{24,}"),
+    "slack_token": re.compile(r"xox[abprs]-[A-Za-z0-9-]{10,}"),
+    "jwt": re.compile(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"),
+    # BEGIN line, base64 body lines, END line with the same label. Lines are separated by
+    # real newlines (body may be indented, as in YAML) or by literal \n escapes (JSON, .env).
+    "private_key": re.compile(
+        r"-----BEGIN ((?:[A-Z]+ )?PRIVATE KEY)-----(?:\\n|\n[ \t]*)(?:[A-Za-z0-9+/=]+(?:\\n|\n[ \t]*))+-----END \1-----"),
+}
+BULLET = "•"  # a masking character that must never appear in the data
 
 failures = []
 
@@ -154,6 +175,23 @@ def run_checks(splits):
             flags.setdefault(m["template_id"], set()).add(m["held_out"])
     inconsistent = sorted(t for t, values in flags.items() if len(values) > 1)
     check(not inconsistent, f"held_out flag is consistent per template_id ({inconsistent})")
+
+    # Secret values must be complete: no masking characters anywhere, and every typed leak
+    # contains a full match of its secret's shape.
+    bullets = 0
+    for name in SPLITS:
+        for path in [DATA_DIR / f"{name}.jsonl", DATA_DIR / f"{name}_meta.jsonl"]:
+            text = path.read_text(encoding="utf-8")
+            count = text.count(BULLET) + text.count("\\u2022")  # raw, or escaped by json.dumps
+            print(f"       U+2022 in {path.relative_to(ROOT)}: {count}")
+            bullets += count
+    check(bullets == 0, f"no U+2022 (bullet) characters in the six data files ({bullets} found)")
+    for leak_type, shape in SECRET_SHAPES.items():
+        snippets = [r["messages"][1]["content"] for name in SPLITS
+                    for r, m in zip(splits[name]["rows"], splits[name]["meta"]) if m["category"] == leak_type]
+        complete = sum(1 for snippet in snippets if shape.search(snippet))
+        check(len(snippets) > 0 and complete == len(snippets),
+              f"{leak_type}: {complete}/{len(snippets)} LEAKED snippets contain a complete value")
 
     ids = {name: {m["template_id"] for m in splits[name]["meta"]} for name in SPLITS}
     held_ids = {t for t, values in flags.items() if True in values}
