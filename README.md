@@ -105,7 +105,7 @@ python generate_data.py && python check_data.py
 
 ## Results
 
-All tables come from `python compare.py baseline lora_a lora_b` on the test set (459 rows).
+The test-set tables (459 rows) come from `python compare.py baseline lora_a lora_b`. The validation table and the valid row of the McNemar table come from `python compare.py lora_a_valid lora_b_valid`.
 
 **Overall**
 
