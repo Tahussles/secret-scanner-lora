@@ -1,7 +1,7 @@
 # PROJECT_STATE
 
 ## Current step
-Round 5 complete: `lora_b` (`mask_prompt: true`) trained and evaluated; paired McNemar tests added. Valid F1: lora_b 0.998 vs lora_a 0.954 (McNemar p = 3.8e-6). Test F1: baseline 0.189, lora_a 0.885, lora_b 0.973. Env-read shortcut hypothesis tested (see Findings). Final-model choice and README pending Taha's decision.
+Round 5 complete: `lora_b` (`mask_prompt: true`) trained and evaluated; paired McNemar tests added. Valid F1: lora_b 0.998 vs lora_a 0.954 (McNemar p = 3.8e-6). Test F1: baseline 0.189, lora_a 0.885, lora_b 0.973. Env-read shortcut hypothesis tested (see Findings). Final model: `lora_b` (decision 30). README not started; waiting for the next round.
 
 ## Done
 - Round 1
@@ -83,12 +83,13 @@ Round 5 complete: `lora_b` (`mask_prompt: true`) trained and evaluated; paired M
 27. mlx-lm 0.32.2 includes one padding target per row in the training loss: batches are zero-padded with at least one extra column (tuner/trainer.py lines 160 and 163) and `default_loss` keeps target positions up to and including the sequence length (line 95), so the target after the last real token, token id 0 (`!`), is counted. This affects both runs: 1 of about 273.5 loss targets per row in `lora_a` (0.4%), 1 of about 6.5 in `lora_b` (2,093 of 13,637 targets, 15.3%). Generation stops at `<|im_end|>`, so it cannot change an answer. Taha chose to proceed without a workaround and document it (Round 5, option A).
 28. Paired significance: McNemar's exact test on per-row correctness (rows matched by line number), two-sided, `p = min(1, 2 * sum_{k<=min(b,c)} C(n,k) / 2^n)` with `n = b + c`, computed for exact-label and for binary (SAFE vs LEAKED) correctness. Valid results decide; test results are reported.
 29. From `lora_b` on, training runs under `/usr/bin/time -l` so the log records the macOS peak memory footprint. Under `mask_prompt: true` the log's `tok/s` and `tokens` columns count loss tokens only (tuner/trainer.py lines 98 and 344), so they are not processing throughput; compare runs by wall-clock time instead.
+30. The final model is `lora_b` (`configs/lora_b.yaml`, adapter `adapters/lora_b/adapters.safetensors`). Agreed by Taha after Round 5, on valid results: F1 0.998 vs 0.954 for `lora_a`, with McNemar b = 0, c = 19, p = 3.8e-6. Test results (F1 0.973, held-out F1 0.941) are reported, not used to choose. The write-up states its known weaknesses: the 12 held-out `ts_s3_client` misses (env-read shortcut), the 3 INVALID outputs on SSH public keys, and that valid contains only seen templates.
 
 ## Open issues
 - No remote yet, so nothing is pushed.
 - Package versions are recorded here but there is no `requirements.txt` yet.
 - Test format mix differs from train because several held-out templates are JSON, YAML or JS (JSON is 17% of test vs 8% of train). Keep this in mind when reading per-format test results.
-- Final model choice pending Taha's decision. Recommendation: `lora_b` (valid F1 0.998 vs 0.954; McNemar on valid b = 0, c = 19, p = 3.8e-6).
+- README not written yet (next round). It should cover what changed, how it was measured, and what was learned, including the weaknesses listed in decision 30.
 - Held-out generalisation gap (test, reporting only, decision 23): `lora_a` F1 0.785 held-out vs 0.965 seen; `lora_b` 0.941 vs 1.000. All 12 `lora_b` false negatives are the held-out `ts_s3_client` template (see Findings), and its 3 INVALID outputs are on the held-out `yaml_cloud_init_ssh` template (invented types `LEAKED: ssh_key`, `LEAKED: ssh_authorized_keys` for SSH public keys).
 - `lora_b`'s test precision of 1.000 relies on decision 17: its 3 INVALID outputs on SAFE rows all start with `LEAKED:`, so a lenient parser would count them as false positives (precision 213/216 = 0.986).
 - Cosmetic, not a labelling issue: DB host names are drawn independently of the URL scheme (for example `postgresql+psycopg2://...@mysql.staging.local:5432/app`), and a passwordless URL can look like `postgresql://postgres:5432/billing` (host `postgres`, port 5432, no user). Labels are correct; only realism is affected.
