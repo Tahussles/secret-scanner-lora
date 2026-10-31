@@ -1,7 +1,7 @@
 # PROJECT_STATE
 
 ## Current step
-Round 1b complete: history cleanup, system prompt v2 frozen, five-snippet smoke test. Waiting for Round 2 (dataset).
+Round 2 complete: seeded synthetic dataset generator (`generate_data.py`) and the generated splits. No evaluation or training yet. Waiting for Round 3.
 
 ## Done
 - Round 1
@@ -17,6 +17,10 @@ Round 1b complete: history cleanup, system prompt v2 frozen, five-snippet smoke 
   - System prompt v2 written to `configs/system_prompt.txt` and frozen.
   - Base model smoke test rerun on five snippets with v2 (outputs below).
   - Labelling rule for fake values settled (decision 7).
+- Round 2
+  - `generate_data.py` written: standard library only, one `random.Random(42)`, 90 named templates across 7 formats.
+  - Generated `data/{train,valid,test}.jsonl` plus line-aligned `data/*_meta.jsonl` (gitignored, not committed).
+  - Verified: held-out templates never in train or valid, 0 identical snippets across or within splits, byte-identical output on two runs, no token-shaped literals in the source.
 
 ## Environment
 | Item | Value |
@@ -36,13 +40,32 @@ Round 1b complete: history cleanup, system prompt v2 frozen, five-snippet smoke 
 5. Greedy decoding means `temp=0.0` (`mlx_lm.sample_utils.make_sampler(temp=0.0)`, which is argmax).
 6. Model weights downloaded manually and SHA-256 verified; run all inference with `HF_HUB_OFFLINE=1`. Python's Hugging Face downloader failed on this network (Xet transfer error, then repeated DNS errors with Xet disabled), so `model.safetensors` (3,087,467,144 bytes) was fetched with `curl` into the standard Hugging Face cache. Its SHA-256 matches the Hub's published hash (`dd924a11...c6d3ee`).
 7. Only explicit placeholder markers count as fake/SAFE: values containing EXAMPLE, dummy, xxxx, your_..._here, or <...>. Realistic fake values are labelled LEAKED.
+8. The user message is the raw snippet with no wrapper. The system message is read at runtime from `configs/system_prompt.txt` (never duplicated in code). The assistant message is exactly `SAFE` or `LEAKED: <type>`.
+9. Labelling precedence: a connection string with an embedded password is `database_url`, not `password`. A private key block is `private_key`; a public key or certificate is SAFE (`public_key`). Placeholder markers are matched case-insensitively. Stripe test-mode keys are real credentials, so they are LEAKED.
+10. Template hold-out scheme: 90 templates, 22 held out (24.4%), chosen by hand so every leak type and every SAFE category has at least one held-out and at least one training template (the generator asserts this). Held-out examples go only to test. Per category the split is 70/15/15, and the test share is half held-out-template examples and half seen-template examples with fresh random values.
+11. Metadata (`template_id`, `category`, `format`, `held_out`) lives in separate line-aligned `data/*_meta.jsonl` files, so the main JSONL files stay pure mlx-lm chat format.
+12. Value-slot templates: the same skeleton produces LEAKED or SAFE depending on what fills `{value}` (fake secret, placeholder, redacted, empty, passwordless DB URL, public key). Structural SAFE cases (env reads, secret manager calls, hashes, UUIDs, ...) have their own templates.
+13. Deduplication is by whitespace-normalised snippet text across all splits. A duplicate is discarded and regenerated, so every category hits its target count exactly (10 duplicates were regenerated).
+14. Dataset size: 167 examples per leak type and 115 per SAFE category (1,503 LEAKED, 1,495 SAFE, 2,998 total).
 
 ## Open issues
 - No remote yet, so nothing is pushed.
 - Package versions are recorded here but there is no `requirements.txt` yet.
+- Test format mix differs from train because several held-out templates are JSON, YAML or JS (JSON is 17% of test vs 8% of train). Keep this in mind when reading per-format test results.
+- The system prompt is repeated in all 2,998 examples. mlx-lm's `--mask-prompt` option is off by default, so `lora_a` (defaults) will also train on prompt tokens. A candidate setting for `lora_b`.
+
+## Dataset (seed 42, `python generate_data.py`)
+| Split | Total | SAFE | LEAKED | Per leak type | Per SAFE category | Held-out-template rows |
+|---|---|---|---|---|---|---|
+| train | 2,093 | 1,040 | 1,053 | 117 | 80 | 0 |
+| valid | 446 | 221 | 225 | 25 | 17 | 0 |
+| test | 459 | 234 | 225 | 25 | 18 | 225 (seen-template rows: 234) |
+
+Formats, train: python 551, yaml 369, shell 316, js_ts 278, env 249, json 176, dockerfile 154.
+Formats, test: yaml 80, js_ts 78, json 78, python 74, shell 72, dockerfile 41, env 36.
 
 ## Latest metrics
-None yet (no dataset). Smoke test with prompt v2 (greedy `temp=0.0`, `max_tokens=64`, `HF_HUB_OFFLINE=1`, ran twice with identical outputs):
+None yet (no evaluation run). Smoke test with prompt v2 (greedy `temp=0.0`, `max_tokens=64`, `HF_HUB_OFFLINE=1`, ran twice with identical outputs):
 
 | Snippet | Expected | Raw output (repr) | Correct |
 |---|---|---|---|
