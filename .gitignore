@@ -3,3 +3,6 @@ data/
 adapters/
 __pycache__/
 .DS_Store
+# per-row outputs contain token-shaped strings; only *_metrics.json is committed
+results/*_predictions.jsonl
+results/*_errors.jsonl
