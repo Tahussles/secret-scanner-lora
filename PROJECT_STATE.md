@@ -1,7 +1,7 @@
 # PROJECT_STATE
 
 ## Current step
-Round 2b complete: dataset integrity checks committed as `check_data.py` (all pass), dataset audited with no labelling bugs found. No evaluation or training yet. Waiting for Round 3.
+Round 3 complete: secret-completeness checks added, strict `evaluate.py` with tests, baseline evaluated on the test set (F1 0.189). No training yet. Waiting for Round 4.
 
 ## Done
 - Round 1
@@ -25,6 +25,11 @@ Round 2b complete: dataset integrity checks committed as `check_data.py` (all pa
   - `check_data.py` added (standard library only): prints the template inventory and per-split tables from `data/*.jsonl` + `data/*_meta.jsonl`, runs 33 checks, exits 1 if any fails. Verified the failure path on a corrupted copy of the data (3 FAIL lines, exit code 1).
   - Label audit: one train example per category (22 rows), contrast pairs and held-out vs train skeletons reviewed by eye. A rule-based audit of all 2,998 rows (token shapes in SAFE rows, literal passwords in SAFE URLs, password vs database_url precedence, private vs public key blocks) found 0 problems.
   - Generator rerun: all 6 data files byte-identical to the Round 2 files. `generate_data.py` unchanged.
+- Round 3
+  - `check_data.py` gained two checks: zero U+2022 (bullet) characters in the six data files (raw or JSON-escaped), and a complete value for every typed leak (167/167 for each of AWS, GitHub, Stripe, Slack, JWT, private key). Both verified to fail on a bullet-masked copy.
+  - `evaluate.py`: strict parser, metrics, confusion matrices, breakdowns by leak type, SAFE category, held-out vs seen and format; writes `results/<run>_metrics.json`, `_predictions.jsonl`, `_errors.jsonl`.
+  - `test_evaluate.py` (unittest, 6 tests, all pass): parser accepts all gold labels and rejects near misses; gold-as-prediction gives F1 = accuracy = 1.0; a hand-made 8-row case gives the exact expected precision 2/3, recall 1/2, F1 4/7.
+  - Baseline: two `--limit 50` runs gave byte-identical predictions; full run on 459 test rows in 52.4 s.
 
 ## Environment
 | Item | Value |
@@ -52,6 +57,12 @@ Round 2b complete: dataset integrity checks committed as `check_data.py` (all pa
 13. Deduplication is by whitespace-normalised snippet text across all splits. A duplicate is discarded and regenerated, so every category hits its target count exactly (10 duplicates were regenerated).
 14. Dataset size: 167 examples per leak type and 115 per SAFE category (1,503 LEAKED, 1,495 SAFE, 2,998 total).
 15. Run `python check_data.py` after every regeneration of the dataset. It reads only the output files (it does not import `generate_data.py`), so its inventory counts templates that actually produced examples. That is why placeholder shows 44 templates there vs 45 defined: held-out `yaml_integration_key` is defined for placeholder but the 9 held-out placeholder slots went to the other held-out templates.
+16. Parsing rule: strip leading and trailing whitespace only, then the output must be exactly one of the 10 valid labels (`SAFE` or `LEAKED: <type>` with one of the 9 types). Anything else (wrong case, extra text or lines, trailing punctuation, unknown type) is INVALID. No other normalisation.
+17. INVALID handling: an INVALID output is never a positive prediction. It is a false negative when gold is LEAKED, and an incorrect answer (neither a false positive nor a true negative) when gold is SAFE. It always counts as wrong for accuracy and binary accuracy. Rates with a zero denominator are reported as null, not 0.
+18. Committed result files: only `results/<run>_metrics.json` (aggregate metrics plus run config: model, adapter, max_tokens, decoding, sha256 of the system prompt and data files, mlx/mlx-lm versions, timestamp, runtime). `results/*_predictions.jsonl` and `results/*_errors.jsonl` are gitignored because they contain snippets and raw outputs with token-shaped strings that GitHub push protection would block.
+19. Evaluation decoding: the chat template is applied to [system, user] with `add_generation_prompt=True`; greedy via `make_sampler(temp=0.0)` (checked in the mlx-lm 0.32.2 source: temp 0 returns its argmax sampler); `max_tokens=32`. `evaluate.py` sets `HF_HUB_OFFLINE=1` unless it is already set.
+20. Secret-completeness patterns: the given patterns were widened only where the generator legitimately produces other shapes: AWS also accepts the `ASIA` prefix (temporary STS key IDs, 85 of 167), GitHub also accepts fine-grained `github_pat_` tokens (35 of 167), and private key blocks may be separated by literal `\n` escapes (JSON, .env), have indented body lines (YAML) or start after other text on the BEGIN line (Python string). Stripe, Slack and JWT patterns are unchanged.
+21. Before every commit, grep all staged files for the six secret patterns and confirm no matches.
 
 ## Open issues
 - No remote yet, so nothing is pushed.
@@ -71,7 +82,27 @@ Formats, train: python 551, yaml 369, shell 316, js_ts 278, env 249, json 176, d
 Formats, test: yaml 80, js_ts 78, json 78, python 74, shell 72, dockerfile 41, env 36.
 
 ## Latest metrics
-None yet (no evaluation run). Smoke test with prompt v2 (greedy `temp=0.0`, `max_tokens=64`, `HF_HUB_OFFLINE=1`, ran twice with identical outputs):
+`baseline`: base model, no adapter, `data/test.jsonl` (459 rows), greedy, `max_tokens=32`. Full numbers in `results/baseline_metrics.json`.
+
+| Run | Precision | Recall | F1 | Accuracy | Binary acc | Type acc | INVALID |
+|---|---|---|---|---|---|---|---|
+| baseline | 0.625 | 0.111 | 0.189 | 0.525 | 0.525 | 1.000 | 6 (1.3%) |
+
+Binary confusion (gold by predicted): SAFE 216 / 15 / 3 (SAFE / LEAKED / INVALID); LEAKED 197 / 25 / 3.
+
+| Subset | n | Precision | Recall | F1 | Accuracy |
+|---|---|---|---|---|---|
+| held-out templates | 225 | 0.533 | 0.074 | 0.130 | 0.516 |
+| seen templates | 234 | 0.680 | 0.145 | 0.239 | 0.534 |
+
+What the baseline shows:
+- The base model mostly answers SAFE (413 of 459 rows), so recall is very low. Only private keys are caught often (recall 0.56); database_url, slack_token and generic_api_key are never flagged.
+- When it does flag a leak, it names the type correctly (type accuracy 1.0 on 25 rows).
+- Highest false-positive rates: public_key 0.278, placeholder 0.167.
+- All 6 INVALID outputs have the form `LEAKED: <variable name from the snippet>` (for example `LEAKED: tls_cert`, `LEAKED: client_secret`).
+- Runtime 52.4 s for 459 rows; two `--limit 50` runs were byte-identical.
+
+Earlier: smoke test with prompt v2 (greedy `temp=0.0`, `max_tokens=64`, `HF_HUB_OFFLINE=1`, ran twice with identical outputs):
 
 | Snippet | Expected | Raw output (repr) | Correct |
 |---|---|---|---|
